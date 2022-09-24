@@ -1,0 +1,177 @@
+from pyspark import SparkContext, SparkConf
+from pyspark.sql import SparkSession
+import os
+import sys
+import logging
+import re
+
+# source path and file name (default: data.csv)
+data_csv = os.environ.get('data_csv', 'data.csv')
+
+# destination path and parquet file name (default: data.parquet)
+output_data_parquet = os.environ.get('output_data_parquet', 'data.parquet')
+
+# url of master (default: local mode)
+master = os.environ.get('master', "local[*]")
+
+# temporal data storage for local execution
+data_dir = os.environ.get('data_dir', '../../data/')
+
+Converts a CSV file with header to parquet using ApacheSpark
+
+parameters = list(
+    map(lambda s: re.sub('$', '"', s),
+        map(
+            lambda s: s.replace('=', '="'),
+            filter(
+                lambda s: s.find('=') > -1 and bool(re.match(r'[A-Za-z0-9_]*=[.\/A-Za-z0-9]*', s)),
+                sys.argv
+            )
+    )))
+
+for parameter in parameters:
+    logging.warning('Parameter: ' + parameter)
+    exec(parameter)
+
+
+spaceGUI ID
+
+49ddc28a-6ec3-4911-b5aa-bdfd8e3e2770
+
+
+API_KEY
+
+NGO2U81xKEBUNnQKVB0Nzucm6qTU-IwP08Khp7yNLEMj
+
+
+https://elyra.readthedocs.io/en/latest/getting_started/installation.html
+
+
+
+
+
+import requests
+
+# NOTE: you must manually set API_KEY below using information retrieved from your IBM Cloud account.
+API_KEY = "NGO2U81xKEBUNnQKVB0Nzucm6qTU-IwP08Khp7yNLEMj"
+token_response = requests.post('https://iam.cloud.ibm.com/identity/token', data={"apikey":
+ API_KEY, "grant_type": 'urn:ibm:params:oauth:grant-type:apikey'})
+mltoken = token_response.json()["access_token"]
+
+header = {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + mltoken}
+
+# NOTE: manually define and pass the array(s) of values to be scored in the next line
+payload_scoring = {"input_data": [{"fields": ["x", "y", "z", ], "values": [[1,2,3]]}]}
+
+response_scoring = requests.post('https://us-south.ml.cloud.ibm.com/ml/v4/deployments/cloudservice/predictions?version=2022-09-24', json=payload_scoring,
+ headers={'Authorization': 'Bearer ' + mltoken})
+print("Scoring response")
+print(response_scoring.json())
+
+
+
+Random Forest.html
+
+https://coursera-assessments.s3.amazonaws.com/assessments/1655135712129/859fe5b1-a062-4916-b6d5-992500bb1c74/randomforest.html
+
+
+
+from pyspark.ml import Pipeline
+from pyspark.ml.feature import StringIndexer
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml.feature import MinMaxScaler
+from pyspark.ml.classification import RandomForestClassifier
+from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+from pyspark import SparkContext, SparkConf
+from pyspark.sql import SparkSession
+import os
+import shutil
+import glob
+import pandas as pd
+data_csv = os.environ.get('data_csv', 'data.csv')
+data_parquet = os.environ.get('data_parquet', 'data.parquet')
+master = os.environ.get('master', "local[*]")
+data_dir = os.environ.get('data_dir', './claimed/data/')
+input_columns = os.environ.get('input_columns',
+                               '["x", "y", "z"]')
+skip = False
+if os.path.exists(data_dir + data_csv):
+    skip = True
+if not skip:
+    sc = SparkContext.getOrCreate(SparkConf().setMaster(master))
+    spark = SparkSession.builder.getOrCreate()
+22/06/13 13:28:24 WARN util.NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+Setting default log level to "WARN".
+To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
+22/06/13 13:28:29 WARN util.Utils: Service 'SparkUI' could not bind on port 4040. Attempting port 4041.
+if not skip:
+    df = spark.read.parquet(data_dir + data_parquet)
+                                                                                
+if not skip:
+    if os.path.exists(data_dir + data_csv):
+        shutil.rmtree(data_dir + data_csv)
+    df.coalesce(1).write.option("header", "true").csv(data_dir + data_csv)
+    file = glob.glob(data_dir + data_csv + '/part-*')
+    shutil.move(file[0], data_dir + data_csv + '.tmp')
+    shutil.rmtree(data_dir + data_csv)
+    shutil.move(data_dir + data_csv + '.tmp', data_dir + data_csv)
+                                                                                
+dfc = spark.read.option("header",True).csv(data_dir + data_csv)
+dfc = dfc.withColumn("x",dfc['x'].cast("int"))
+dfc = dfc.withColumn("y",dfc["y"].cast("int"))
+dfc = dfc.withColumn("z",dfc["z"].cast("int"))
+                                                                                
+dfc.printSchema()
+root
+ |-- x: integer (nullable = true)
+ |-- y: integer (nullable = true)
+ |-- z: integer (nullable = true)
+ |-- source: string (nullable = true)
+ |-- class: string (nullable = true)
+
+splits = dfc.randomSplit([0.8, 0.2], 1)
+df_train = splits[0]
+df_test = splits[1]
+numTrees = [10, 20]
+maxDepth = [5, 7]
+evals = []
+for n in numTrees:
+    for m in maxDepth:
+        indexer = StringIndexer(inputCol="class", outputCol="label")
+
+        vectorAssembler = VectorAssembler(inputCols=eval(input_columns),
+                                          outputCol="features")
+
+        normalizer = MinMaxScaler(inputCol="features", outputCol="features_norm")
+
+        rf = RandomForestClassifier(numTrees=n, maxDepth=m, labelCol="label", seed=1, featuresCol='features_norm')
+
+        pipeline = Pipeline(stages=[indexer, vectorAssembler, normalizer, rf])
+
+        model = pipeline.fit(df_train)
+
+        prediction = model.transform(df_train)
+
+        binEval = MulticlassClassificationEvaluator(). \
+            setMetricName("accuracy"). \
+            setPredictionCol("prediction"). \
+            setLabelCol("label")
+
+        evals.append([n, m, binEval.evaluate(prediction)])
+
+df_evals = pd.DataFrame(evals, columns=['numTrees', 'maxDepth', 'Eval'])
+print(df_evals)
+[Stage 101:===================================>                     (5 + 3) / 8]
+   numTrees  maxDepth      Eval
+0        10         5  0.439178
+1        10         7  0.464036
+2        20         5  0.443680
+3        20         7  0.466432
+                                                                                
+max = df_evals[df_evals.Eval == df_evals.Eval.max()]
+print(f'Max Accuracy: {df_evals.Eval.max()}')
+print(f'numTrees: {max.numTrees.iloc[0]}')
+print(f'maxDepth: {max.maxDepth.iloc[0]}\n')
+Max Accuracy: 0.4664324309191187
+numTrees: 20
+maxDepth: 7
